@@ -1,0 +1,45 @@
+{
+  "site": {
+    "name": "Replace with actual site name",
+    "coordinate_system": "LOCAL_UNVERIFIED",
+    "units": "feet",
+    "road_name": "Replace with road name",
+    "state": "CA"
+  },
+  "typical_application": {
+    "type": "other",
+    "direction": "BOTH",
+    "posted_speed_mph": 0,
+    "lanes_total": 1
+  },
+  "zones": [
+    {
+      "zone_id": "Z1",
+      "type": "work",
+      "start_station": 0,
+      "end_station": 100
+    }
+  ],
+  "centerline": {
+    "origin": [
+      0,
+      0
+    ],
+    "endpoint": [
+      100,
+      0
+    ]
+  },
+  "block_mappings": {
+    "W20_1": {
+      "type": "sign",
+      "mutcd_code": "W20-1",
+      "zone_id": "Z1"
+    },
+    "ARROW_BOARD": {
+      "type": "arrow_board",
+      "mode": "flashing",
+      "zone_id": "Z1"
+    }
+  }
+}
