@@ -21,14 +21,15 @@ def make_dxf(path, *, with_line=False, with_unmapped=False):
     doc.saveas(path)
 
 
-def test_batch_dgn_is_not_silently_accepted(tmp_path):
+def test_batch_dgn_without_conversion_tool_is_reported(tmp_path, monkeypatch):
+    monkeypatch.setattr('cloudtcp_dxf.dgn.shutil.which', lambda _: None)
     source, output = tmp_path / "source", tmp_path / "output"
     source.mkdir()
     (source / "client.dgn").write_bytes(b"not a real DGN")
     summary = run_batch(source, output)
     assert summary["total_files"] == 1
     assert summary["successful_files"] == 0
-    assert summary["files"][0]["failure_category"] == ["native_dgn_not_supported"]
+    assert summary["files"][0]["failure_category"] == ["dgn_to_dxf_failed"]
     assert summary["conversion_success_rate"] == 0
 
 
