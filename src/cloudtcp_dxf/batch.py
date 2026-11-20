@@ -4,6 +4,7 @@ from collections import Counter
 import json
 from pathlib import Path
 
+from .dgn import convert_dgn, DGNConversionError
 from .extract import extract_dxf
 from .if_conversion import convert_extraction, validate_if
 
@@ -41,7 +42,7 @@ def classify(extraction, report, document):
     return list(dict.fromkeys(failures)), lost
 
 
-def run_batch(input_dir, output_dir, *, config=None, schema=None):
+def run_batch(input_dir, output_dir, *, config=None, schema=None, ogr2ogr='ogr2ogr'):
     input_dir, output_dir = Path(input_dir), Path(output_dir)
     if not input_dir.is_dir():
         raise ValueError(f"Input directory not found: {input_dir}")
@@ -57,10 +58,22 @@ def run_batch(input_dir, output_dir, *, config=None, schema=None):
                   "if_output": None, "extraction_output": None}
         try:
             if path.suffix.lower() == ".dgn":
-                record["failure_category"].append("native_dgn_not_supported")
-                record["elements_lost_or_misplaced"].append("Native DGN contents not inspected; requires verified DGN-to-DXF conversion")
+                dxf_path = Path(str(base) + ".dxf")
+                try:
+                    export = convert_dgn(path, dxf_path, executable=ogr2ogr)
+                except DGNConversionError as exc:
+                    record["failure_category"].append("dgn_to_dxf_failed")
+                    record["error"] = str(exc)
+                    results.append(record)
+                    continue
+                record["dxf_output"] = dxf_path.relative_to(output_dir).as_posix()
+                record["conversion_warning"] = export["warning"]
+                record["failure_category"].append("dgn_export_fidelity_unverified")
+                effective_path = dxf_path
             else:
-                extraction = extract_dxf(path)
+                effective_path = path
+            if True:
+                extraction = extract_dxf(effective_path)
                 extraction_path = Path(str(base) + ".extracted.json")
                 save_json(extraction_path, extraction)
                 record["extraction_output"] = extraction_path.relative_to(output_dir).as_posix()
@@ -104,7 +117,7 @@ def run_batch(input_dir, output_dir, *, config=None, schema=None):
         "files": results,
         "notes": [
             "Success requires IF schema validation, mapped traffic elements, no known CAD loss, and no unrepresented basemap geometry.",
-            "Native DGN is not parsed; any DGN files count as failures until converted and individually audited.",
+            "DGN is exported using GDAL/OGR if supported; cell and geometry fidelity requires visual inspection.",
             "Missing cone representation, misplaced geometry, and verifier correctness require manual inspection of real plans.",
             "The CAD extraction sidecar preserves linework even though IF v1 cannot represent a full basemap."
         ]
@@ -119,12 +132,13 @@ def main(argv=None):
     parser.add_argument("-o", "--output-dir", type=Path, required=True)
     parser.add_argument("--if-config", type=Path, help="Verified site configuration JSON")
     parser.add_argument("--schema", type=Path, help="IF v1 JSON schema (required to count successful conversions)")
+    parser.add_argument("--ogr2ogr", default="ogr2ogr", help="Path to the GDAL ogr2ogr executable")
     args = parser.parse_args(argv)
     try:
         if args.schema and not args.if_config:
             parser.error("--schema requires --if-config")
         config = json.loads(args.if_config.read_text(encoding="utf-8")) if args.if_config else None
-        summary = run_batch(args.input_dir, args.output_dir, config=config, schema=args.schema)
+        summary = run_batch(args.input_dir, args.output_dir, config=config, schema=args.schema, ogr2ogr=args.ogr2ogr)
         print(f"Audited {summary['total_files']} files; {summary['successful_files']} fully converted. "
               f"Log: {args.output_dir / 'conversion-log.json'}")
         return 0 if summary["successful_files"] == summary["total_files"] and summary["total_files"] else 1
