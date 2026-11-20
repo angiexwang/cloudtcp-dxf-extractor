@@ -72,7 +72,7 @@ def run_batch(input_dir, output_dir, *, config=None, schema=None, ogr2ogr='ogr2o
                 effective_path = dxf_path
             else:
                 effective_path = path
-            if True:
+            if effective_path:
                 extraction = extract_dxf(effective_path)
                 extraction_path = Path(str(base) + ".extracted.json")
                 save_json(extraction_path, extraction)
